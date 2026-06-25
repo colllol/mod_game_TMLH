@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "149057416533",
+    "project_id": "thienmenhlachong-4657e",
+    "storage_bucket": "thienmenhlachong-4657e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:149057416533:android:461e10efd708f569a513dc",
+        "android_client_info": {
+          "package_name": "com.dreamsoft.thienmenhlachong"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD57o8Fyt4vmwdWz3wWLJ2GzFNW5Nc2EKI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
