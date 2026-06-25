@@ -1,0 +1,25 @@
+## .NET build output
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.exe
+*.pdb
+*.nupkg
+project.lock.json
+project.assets.json
+*.runtimeconfig.json
+*.deps.json
+
+## IDE / editor files
+.vscode/
+.idea/
+*.sln
+*.csproj.user
+
+## Temp / dump files
+dump.cs
+*.tmp
+*.temp
