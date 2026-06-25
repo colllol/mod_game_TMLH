@@ -97,7 +97,7 @@ public static class Program
             VulnerabilityReport.WriteJsonReport(jsonPath, summary, scanResult);
             VulnerabilityReport.WriteHtmlReport(htmlPath, summary, scanResult);
 
-            PrintSummary(summary, scanResult, jsonPath, htmlPath);
+            PrintSummary(summary, scanResult, strings.Count, jsonPath, htmlPath);
             return 0;
         }
         catch (Exception ex)
@@ -107,10 +107,11 @@ public static class Program
         }
     }
 
-    private static void PrintSummary(ScanSummary summary, ScanResult scanResult, string jsonPath, string htmlPath)
+    private static void PrintSummary(ScanSummary summary, ScanResult scanResult, int totalStrings, string jsonPath, string htmlPath)
     {
         Console.WriteLine("Scan complete.");
         Console.WriteLine($"Metadata: {summary.MetadataPath}");
+        Console.WriteLine($"Total strings scanned: {totalStrings}");
         Console.WriteLine($"Findings: {summary.FindingsCount}");
         Console.WriteLine($"Critical: {summary.CriticalCount}");
         Console.WriteLine($"High: {summary.HighCount}");

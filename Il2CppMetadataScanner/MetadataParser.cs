@@ -45,55 +45,116 @@ public sealed class MetadataParser
             Length = stream.Length
         };
 
-        if (stream.Length < 32)
+        if (stream.Length < 48)
         {
             throw new InvalidDataException("global-metadata.dat is too small to contain an IL2CPP metadata header.");
         }
 
-        // Unity metadata header format varies across versions. Many versions start with
-        // four bytes that look like a small integer version or a signature. We do not
-        // hardcode exact behavior here; instead we store raw header bytes and key
-        // offsets so downstream analysis can adapt.
-        header.RawHeader = reader.ReadBytes(16);
+        header.RawHeader = reader.ReadBytes(48);
 
-        header.StringSectionOffset = ReadUInt32(reader, stream);
-        header.StringSectionSize = ReadUInt32(reader, stream);
-
-        if (header.StringSectionOffset <= 0 || header.StringSectionSize <= 0)
+        uint magic = BitConverter.ToUInt32(header.RawHeader, 0);
+        if (magic != 0xFFFEEDBC)
         {
-            throw new InvalidDataException("Metadata string section offset or size is invalid.");
+            throw new InvalidDataException($"Invalid IL2CPP magic: 0x{magic:X8} (expected 0xFFFEEDBC).");
         }
 
-        if (header.StringSectionOffset + header.StringSectionSize > stream.Length)
+        header.Version = BitConverter.ToUInt16(header.RawHeader, 4);
+        header.StringCount = BitConverter.ToUInt32(header.RawHeader, 8);
+        header.StringDataSize = BitConverter.ToUInt32(header.RawHeader, 12);
+        header.StringDataOffset = BitConverter.ToUInt32(header.RawHeader, 16);
+
+        if (header.StringDataOffset <= 0 || header.StringDataSize <= 0)
         {
-            throw new InvalidDataException("Metadata string section exceeds file boundaries.");
+            header.StringDataOffset = 0;
+            header.StringDataSize = 0;
+        }
+        else if (header.StringDataOffset + header.StringDataSize > stream.Length)
+        {
+            header.StringDataOffset = 0;
+            header.StringDataSize = 0;
         }
 
         return header;
     }
 
+    public IReadOnlyList<string> ExtractAllStrings(int maxStringLength = 512)
+    {
+        var results = new List<string>();
+        var seen = new HashSet<string>();
+
+        using var stream = File.OpenRead(_metadataPath);
+        var allBytes = new byte[stream.Length];
+        stream.Read(allBytes, 0, allBytes.Length);
+
+        int runStart = -1;
+        int bytePos = 0;
+
+        foreach (byte b in allBytes)
+        {
+            if (b < 32 || b > 126)
+            {
+                if (runStart >= 0)
+                {
+                    int runLength = bytePos - runStart;
+                    if (runLength >= 3 && runLength <= maxStringLength)
+                    {
+                        string? candidate = DecodeRun(allBytes, runStart, runLength);
+                        if (!string.IsNullOrEmpty(candidate) && !seen.Contains(candidate))
+                        {
+                            seen.Add(candidate);
+                            results.Add(candidate);
+                        }
+                    }
+                    runStart = -1;
+                }
+            }
+            else
+            {
+                if (runStart < 0) runStart = bytePos;
+            }
+            bytePos++;
+        }
+
+        if (runStart >= 0)
+        {
+            int runLength = bytePos - runStart;
+            if (runLength >= 3 && runLength <= maxStringLength)
+            {
+                string? candidate = DecodeRun(allBytes, runStart, runLength);
+                if (!string.IsNullOrEmpty(candidate) && !seen.Contains(candidate))
+                {
+                    seen.Add(candidate);
+                    results.Add(candidate);
+                }
+            }
+        }
+
+        return results;
+    }
+
     /// <summary>
     /// Extracts candidate strings from the string section.
+    /// Falls back to full-file extraction if header section boundaries are invalid.
     /// </summary>
-    /// <param name="maxStringLength">Maximum length for extracted strings.</param>
     public IReadOnlyList<string> ExtractStrings(MetadataHeader header, int maxStringLength = 512)
     {
         if (header is null) throw new ArgumentNullException(nameof(header));
         if (maxStringLength <= 0) throw new ArgumentOutOfRangeException(nameof(maxStringLength));
+
+        if (header.StringDataOffset <= 0 || header.StringDataSize <= 0 ||
+            header.StringDataOffset + header.StringDataSize > header.Length)
+        {
+            return ExtractAllStrings(maxStringLength);
+        }
 
         var results = new List<string>();
 
         using var stream = File.OpenRead(_metadataPath);
         using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
 
-        if (stream.Length < header.StringSectionOffset + header.StringSectionSize)
-        {
-            throw new InvalidDataException("Metadata file is smaller than declared string section.");
-        }
+        stream.Seek(header.StringDataOffset, SeekOrigin.Begin);
 
-        stream.Seek(header.StringSectionOffset, SeekOrigin.Begin);
-
-        var sectionBytes = reader.ReadBytes((int)header.StringSectionSize);
+        var sectionBytes = reader.ReadBytes((int)header.StringDataSize);
         var decoder = Encoding.UTF8.GetDecoder();
 
         int runStart = -1;
@@ -163,6 +224,18 @@ public sealed class MetadataParser
         }
     }
 
+    private static string? DecodeRun(byte[] buffer, int start, int length)
+    {
+        try
+        {
+            return Encoding.ASCII.GetString(buffer, start, length);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private static uint ReadUInt32(BinaryReader reader, Stream stream)
     {
         if (stream.Position + 4 > stream.Length)
@@ -175,14 +248,13 @@ public sealed class MetadataParser
     }
 }
 
-/// <summary>
-/// Metadata file header information and section boundaries.
-/// </summary>
 public sealed class MetadataHeader
 {
     public string FilePath { get; set; } = string.Empty;
     public long Length { get; set; }
     public byte[] RawHeader { get; set; } = Array.Empty<byte>();
-    public uint StringSectionOffset { get; set; }
-    public uint StringSectionSize { get; set; }
+    public ushort Version { get; set; }
+    public uint StringCount { get; set; }
+    public uint StringDataSize { get; set; }
+    public uint StringDataOffset { get; set; }
 }
