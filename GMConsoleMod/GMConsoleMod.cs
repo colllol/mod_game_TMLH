@@ -52,6 +52,7 @@ namespace GMConsoleMod
             }
 
             GMCommands.Initialize(new LoggerWrapper(_logAction, _warnAction, _errorAction));
+            CommandExecutor.Initialize();
             LoggerInstance.Msg("GMCommands initialized");
             LoggerInstance.Msg("READY - Press F1 to toggle console, F12 to panic hide");
         }

@@ -158,7 +158,15 @@ namespace GMConsoleMod
                 if (!string.IsNullOrWhiteSpace(_inputText))
                 {
                     AddOutput($"> {_inputText}");
-                    GMConsoleMod.ExecuteCommand(_inputText);
+                    var result = CommandExecutor.Execute(_inputText);
+                    if (result != null && !string.IsNullOrEmpty(result.Error))
+                    {
+                        AddOutput($"! Error: {result.Error}");
+                    }
+                    else if (result != null && result.Success)
+                    {
+                        AddOutput($"OK: {_inputText}");
+                    }
                     _inputText = "";
                 }
                 Event.current.Use();
