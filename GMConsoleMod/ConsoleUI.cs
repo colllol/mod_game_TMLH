@@ -82,7 +82,6 @@ namespace GMConsoleMod
 
             CreateTextures();
 
-            // Ensure we have GUI utility
             GUI.depth = -10;
 
             _windowRect = GUI.Window(0, _windowRect, DrawWindow, "GM Console", GUI.skin.window);
@@ -99,9 +98,9 @@ namespace GMConsoleMod
             // Output area with scroll
             Rect outputRect = new Rect(5, yPos + 5, _windowRect.width - 10, contentHeight - 40);
             Rect scrollViewRect = new Rect(0, 0, outputRect.width - 20, _outputLines.Count * 18f);
-            
+
             _scrollPosition = GUI.BeginScrollView(outputRect, _scrollPosition, scrollViewRect);
-            
+
             float lineY = 0;
             GUIStyle lineStyle = new GUIStyle(GUI.skin.label)
             {
@@ -123,7 +122,7 @@ namespace GMConsoleMod
                 GUI.Label(new Rect(5, lineY, scrollViewRect.width - 10, 18), line, lineStyle);
                 lineY += 18;
             }
-            
+
             GUI.EndScrollView();
 
             // Input field
@@ -146,8 +145,12 @@ namespace GMConsoleMod
                 normal = { textColor = Color.white }
             });
 
-            // Focus input field
-            GUI.FocusControl("ConsoleInput");
+            // Only focus input field on mouse click inside the window
+            if (Event.current.type == EventType.MouseDown &&
+                _windowRect.Contains(new Vector2(Event.current.mousePosition.x, Event.current.mousePosition.y)))
+            {
+                GUI.FocusControl("ConsoleInput");
+            }
 
             // Handle Enter key for command execution
             if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Return)

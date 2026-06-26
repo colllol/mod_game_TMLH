@@ -2,6 +2,7 @@ using MelonLoader;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using UnityEngine;
 
 [assembly: MelonInfo(typeof(GMConsoleMod.GMConsoleMod), "GMConsoleMod", "1.0.0", "Modder", "In-game GM Command Console for Thien Menh Lac Hong")]
@@ -11,13 +12,21 @@ namespace GMConsoleMod
 {
     public class GMConsoleMod : MelonMod
     {
+        [DllImport("user32.dll")]
+        public static extern short GetAsyncKeyState(int vKey);
+
+        private const int VK_F1 = 0x70;
+        private const int VK_F12 = 0x7B;
+
         public static GMConsoleMod Instance { get; private set; }
         public static readonly List<string> CommandHistory = new List<string>();
         public static int HistoryIndex = -1;
 
         private ConsoleUI _consoleUI;
         private bool _consoleOpen = false;
-        private bool _f1Pressed = false;
+        private bool _isPanicMode = false;
+        private DateTime _lastF1Press = DateTime.MinValue;
+        private DateTime _lastF12Press = DateTime.MinValue;
         private static Action<object> _logAction;
         private static Action<object> _warnAction;
         private static Action<object> _errorAction;
@@ -27,7 +36,7 @@ namespace GMConsoleMod
             Instance = this;
             LoggerInstance.Msg("=== GMConsoleMod v1.0.0 ===");
             LoggerInstance.Msg("Loading...");
-            
+
             _logAction = LoggerInstance.Msg;
             _warnAction = LoggerInstance.Warning;
             _errorAction = LoggerInstance.Error;
@@ -44,7 +53,7 @@ namespace GMConsoleMod
 
             GMCommands.Initialize(new LoggerWrapper(_logAction, _warnAction, _errorAction));
             LoggerInstance.Msg("GMCommands initialized");
-            LoggerInstance.Msg("READY - Press F1 to toggle console");
+            LoggerInstance.Msg("READY - Press F1 to toggle console, F12 to panic hide");
         }
 
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
@@ -58,23 +67,38 @@ namespace GMConsoleMod
 
         public override void OnUpdate()
         {
-            // Check F1 with flag to avoid multiple triggers
-            if (Input.GetKey(KeyCode.F1) && !_f1Pressed)
+            DateTime now = DateTime.Now;
+
+            // Check F1 using User32.dll - debounced
+            bool f1Down = (GetAsyncKeyState(VK_F1) & 0x8000) != 0;
+            if (f1Down && (now - _lastF1Press).TotalMilliseconds > 300)
             {
-                _f1Pressed = true;
+                _lastF1Press = now;
+                _isPanicMode = false;
                 LoggerInstance.Msg("F1 pressed - toggling console");
                 ToggleConsole();
             }
-            
-            if (!Input.GetKey(KeyCode.F1))
+
+            // Check F12 for panic hide - debounced
+            bool f12Down = (GetAsyncKeyState(VK_F12) & 0x8000) != 0;
+            if (f12Down && (now - _lastF12Press).TotalMilliseconds > 300)
             {
-                _f1Pressed = false;
+                _lastF12Press = now;
+                PanicHide();
             }
 
             if (_consoleOpen && _consoleUI != null)
             {
                 HandleConsoleInput();
             }
+        }
+
+        public void PanicHide()
+        {
+            _consoleOpen = false;
+            _isPanicMode = true;
+            _consoleUI?.Hide();
+            LoggerInstance.Msg("PANIC! Console hidden (F12 pressed)");
         }
 
         public void ToggleConsole()
@@ -119,14 +143,16 @@ namespace GMConsoleMod
 
         public override void OnGUI()
         {
-            // Always render to check if GUI works
+            // Debug: Show small indicator when mod is loaded (hidden in panic mode)
+            if (!_isPanicMode)
+            {
+                GUI.Label(new Rect(10, 10, 200, 20), "GMConsoleMod Active");
+            }
+
             if (_consoleOpen && _consoleUI != null)
             {
                 _consoleUI.OnGUI();
             }
-            
-            // Debug: Show small indicator when mod is loaded
-            GUI.Label(new Rect(10, 10, 200, 20), "GMConsoleMod Active");
         }
 
         public override void OnApplicationQuit()
